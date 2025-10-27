@@ -1,0 +1,51 @@
+name: CI - Playwright Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11]
+       
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers & deps
+        run: |
+          # installs browsers and Linux dependencies
+          npx playwright@latest install --with-deps
+
+      - name: Run tests (parallel)
+        env:
+          HEADLESS: true
+          PYTEST_XDIST_WORKER: gw0     # optional default; xdist will override per worker
+        run: |
+          mkdir -p reports artifacts logs
+          # run with 2 pytest-xdist workers (CI runners have limited resources)
+          pytest -n 2 --maxfail=1 --dist=loadfile --junitxml=reports/junit.xml --html=reports/report.html --self-contained-html || true
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            reports/**
+            artifacts/**
+            logs/**
